@@ -3,7 +3,7 @@
 	"name": "juju_store",
 	"compatibility_date": "2025-10-08",
 	"upload_source_maps": true,
-	"main": "./server.ts",
+	"main": "./index.html",
 	"assets": {
 		"directory": "./build/client"
 	},
