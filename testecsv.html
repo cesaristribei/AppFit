@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>MVP CSV Test</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#0f172a;
+color:#e2e8f0;
+padding:40px;
+}
+
+button{
+padding:10px 20px;
+font-size:16px;
+cursor:pointer;
+margin-bottom:20px;
+}
+
+.box{
+background:#1e293b;
+padding:20px;
+border-radius:10px;
+margin-bottom:20px;
+}
+
+pre{
+background:#020617;
+padding:15px;
+overflow:auto;
+max-height:300px;
+}
+
+.ok{color:#22c55e}
+.err{color:#ef4444}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Teste CSV Google Sheets</h1>
+
+<button onclick="carregar()">Carregar CSV</button>
+
+<div class="box">
+<b>Status</b>
+<div id="status">Aguardando...</div>
+</div>
+
+<div class="box">
+<b>Primeiras linhas do CSV</b>
+<pre id="csvPreview"></pre>
+</div>
+
+<div class="box">
+<b>Dados parseados</b>
+<pre id="dados"></pre>
+</div>
+
+<script>
+
+const url =
+"https://docs.google.com/spreadsheets/d/e/2PACX-1vRp02eHfI8rs1JICtUI81NAm90CIqqaGzC3XLBu1_v6PBFItfUclofrnQtVULo7iXPsAvLYRh1IxJZw/pub?output=csv&t="+Date.now()
+
+async function carregar(){
+
+const status=document.getElementById("status")
+const preview=document.getElementById("csvPreview")
+const dadosBox=document.getElementById("dados")
+
+status.innerHTML="Carregando..."
+
+try{
+
+const resposta = await fetch(url)
+
+status.innerHTML="HTTP Status: "+resposta.status
+
+const texto = await resposta.text()
+
+preview.textContent = texto.substring(0,500)
+
+processarCSV(texto)
+
+}catch(e){
+
+status.innerHTML =
+"<span class='err'>Erro: "+e+"</span>"
+
+}
+
+}
+
+function processarCSV(texto){
+
+const linhas = texto.trim().split(/\r?\n/)
+
+const dados = linhas.slice(1).map(l=>l.split(","))
+
+document.getElementById("dados").textContent =
+JSON.stringify(dados,null,2)
+
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,407 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relatório - Projeto 90 Dias</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="card topbar-card">
+
+<div class="topbar-header">
+
+<div class="title">Projeto 90 Dias</div>
+
+<div id="diasPlano" class="plan-progress"></div>
+
+</div>
+
+<div class="nav">
+
+<a href="index.html" class="nav-item active">Dashboard</a>
+<a href="relatorio.html" class="nav-item">Relatório</a>
+<a href="alimentacao.html" class="nav-item">Alimentação</a>
+<a href="treino.html" class="nav-item">Treino</a>
+<a href="planojuju.html" class="nav-item">Plano Juju</a>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="container">
+
+<div class="section-title">Análise do Período</div>
+<div class="card">
+<div id="analiseResumo" style="line-height:1.6;font-size:15px;">
+Carregando análise...
+</div>
+</div>
+
+<div class="section-title">Resumo Geral</div>
+<div class="card">
+<table id="tabelaResumo"></table>
+</div>
+
+<div class="section-title">Evolução Peso + Gordura</div>
+<div class="card">
+<canvas id="graficoGeral" height="350"></canvas>
+</div>
+
+<div class="section-title">Comparação Mensal</div>
+<div class="card">
+<table id="comparacaoMensal"></table>
+</div>
+
+<div class="section-title">Análise Segmentada Estratégica</div>
+<div class="card">
+<div id="segmentosAnalise"></div>
+</div>
+
+</div>
+
+<script>
+
+const urlPrincipal =
+"https://docs.google.com/spreadsheets/d/e/2PACX-1vToYG_7CtYLSebPpvKcvzCt_dbU0Pg7myG3J_zrcJXcgvZ4reTNALTdtCaYfNLH_mQWH2SrMB2fEwTC/pub?output=csv";
+
+const urlSegmentos =
+"https://docs.google.com/spreadsheets/d/e/2PACX-1vRXgzeyEJiwOrEub9URxTKdk5g8FASC7rh1uL5NFPTeobw9YNx5mxx22fRoycsgVS1ZXdVRe850-pdG/pub?output=csv";
+
+let dadosPrincipais = [];
+let dadosSegmentos = [];
+let chartGeral = null;
+
+async function carregarCSVs(){
+
+try{
+
+const p = await fetch(urlPrincipal + "&t=" + Date.now());
+const s = await fetch(urlSegmentos + "&t=" + Date.now());
+
+const textoPrincipal = await p.text();
+const textoSegmentos = await s.text();
+
+dadosPrincipais = parseCSV(textoPrincipal);
+dadosSegmentos = parseCSV(textoSegmentos);
+
+gerarAnalisePeriodo();
+gerarResumo();
+gerarGraficoGeral();
+gerarComparacaoMensal();
+gerarSegmentado();
+
+}catch(e){
+
+mostrarErro(e);
+
+}
+
+}
+
+function parseCSV(texto){
+
+if(!texto) return [];
+
+return texto
+.split(/\r?\n/)
+.filter(l => l.trim().length > 0)
+.slice(1)
+.map(l => l.split(","));
+
+}
+
+function mostrarErro(e){
+
+let box=document.createElement("div");
+
+box.style.background="#7f1d1d";
+box.style.color="white";
+box.style.padding="12px";
+box.style.margin="10px";
+box.style.borderRadius="8px";
+
+box.innerText="Erro carregando CSV: "+e;
+
+document.body.prepend(box);
+
+}
+
+function gerarAnalisePeriodo(){
+
+if(!dadosPrincipais || dadosPrincipais.length < 2) return;
+
+let primeiro = dadosPrincipais[0];
+let ultimo = dadosPrincipais[dadosPrincipais.length-1];
+
+let pesoInicial = parseFloat(primeiro[3]);
+let pesoAtual = parseFloat(ultimo[3]);
+
+let gorduraInicial = parseFloat(primeiro[5]);
+let gorduraAtual = parseFloat(ultimo[5]);
+
+let massaInicial = parseFloat(primeiro[7]);
+let massaAtual = parseFloat(ultimo[7]);
+
+let deltaPeso = pesoAtual - pesoInicial;
+let deltaGordura = gorduraAtual - gorduraInicial;
+let deltaMassa = massaAtual - massaInicial;
+
+let texto = `
+<strong>Período analisado:</strong> ${primeiro[0]} → ${ultimo[0]} <br><br>
+
+Peso: <b>${deltaPeso.toFixed(1)} kg</b><br>
+Gordura corporal: <b>${deltaGordura.toFixed(1)} %</b><br>
+Massa muscular: <b>${deltaMassa.toFixed(1)} kg</b>
+`;
+
+let qualidade = "";
+
+if(deltaPeso < 0 && deltaGordura < 0 && deltaMassa >= 0)
+qualidade = "Excelente recomposição corporal.";
+
+else if(deltaPeso < 0 && deltaGordura < 0)
+qualidade = "Boa perda de gordura.";
+
+else if(deltaPeso < 0)
+qualidade = "Perda de peso sem clara recomposição.";
+
+else
+qualidade = "Sem melhora significativa.";
+
+texto += `<br><br><strong>${qualidade}</strong>`;
+
+document.getElementById("analiseResumo").innerHTML = texto;
+
+}
+
+function gerarResumo(){
+
+const tabela=document.getElementById("tabelaResumo");
+tabela.innerHTML="";
+
+let header=tabela.insertRow();
+
+["Data","Peso","IMC","Gordura %","Massa Muscular","BMR"]
+.forEach(h=>header.insertCell().innerText=h);
+
+(dadosPrincipais || []).forEach(l=>{
+
+let row=tabela.insertRow();
+
+row.insertCell().innerText=l[0];
+row.insertCell().innerText=l[3]+" kg";
+row.insertCell().innerText=l[4];
+row.insertCell().innerText=l[5]+" %";
+row.insertCell().innerText=l[7]+" kg";
+row.insertCell().innerText=l[13]+" kcal";
+
+});
+
+}
+
+function gerarGraficoGeral(){
+
+let pesos=[];
+let gorduras=[];
+let datas=[];
+
+(dadosPrincipais || []).forEach(l=>{
+
+let peso=parseFloat(l[3]);
+let gordura=parseFloat(l[5]);
+
+if(!isNaN(peso) && !isNaN(gordura)){
+
+pesos.push(peso);
+gorduras.push(gordura);
+datas.push(l[0]);
+
+}
+
+});
+
+const canvas=document.getElementById("graficoGeral");
+
+if(chartGeral) chartGeral.destroy();
+
+chartGeral=new Chart(canvas,{
+
+type:"line",
+
+data:{
+labels:datas,
+datasets:[
+{
+label:"Peso (kg)",
+data:pesos,
+borderColor:"#3b82f6",
+borderWidth:2,
+tension:0.3
+},
+{
+label:"Gordura %",
+data:gorduras,
+borderColor:"#ef4444",
+borderWidth:2,
+tension:0.3
+}
+]
+}
+
+});
+
+}
+
+function gerarComparacaoMensal(){
+
+let meses={};
+
+(dadosPrincipais || []).forEach(l=>{
+
+let data=l[0];
+if(!data) return;
+
+let mes=data.substring(0,7);
+
+let peso=parseFloat(l[3]);
+let gordura=parseFloat(l[5]);
+let massa=parseFloat(l[7]);
+
+if(isNaN(peso)||isNaN(gordura)||isNaN(massa)) return;
+
+if(!meses[mes]) meses[mes]={peso:[],gordura:[],massa:[]};
+
+meses[mes].peso.push(peso);
+meses[mes].gordura.push(gordura);
+meses[mes].massa.push(massa);
+
+});
+
+let tabela=document.getElementById("comparacaoMensal");
+
+tabela.innerHTML=`
+<tr>
+<th>Mês</th>
+<th>Peso Médio</th>
+<th>Δ Peso</th>
+<th>Gordura Média</th>
+<th>Δ Gordura</th>
+<th>Massa Média</th>
+<th>Δ Massa</th>
+</tr>
+`;
+
+let mesAnterior=null;
+
+Object.keys(meses).sort().forEach(mes=>{
+
+let pesoMedio=media(meses[mes].peso);
+let gorduraMedia=media(meses[mes].gordura);
+let massaMedia=media(meses[mes].massa);
+
+let deltaPeso=mesAnterior?(pesoMedio-mesAnterior.peso):0;
+let deltaGordura=mesAnterior?(gorduraMedia-mesAnterior.gordura):0;
+let deltaMassa=mesAnterior?(massaMedia-mesAnterior.massa):0;
+
+let row=tabela.insertRow();
+
+row.insertCell().innerText=mes;
+row.insertCell().innerText=pesoMedio.toFixed(1);
+row.insertCell().innerText=deltaPeso.toFixed(1);
+
+row.insertCell().innerText=gorduraMedia.toFixed(1);
+row.insertCell().innerText=deltaGordura.toFixed(1);
+
+row.insertCell().innerText=massaMedia.toFixed(1);
+row.insertCell().innerText=deltaMassa.toFixed(1);
+
+mesAnterior={
+peso:pesoMedio,
+gordura:gorduraMedia,
+massa:massaMedia
+};
+
+});
+
+}
+
+function media(arr){
+
+if(!arr || arr.length===0) return 0;
+
+return arr.reduce((a,b)=>a+b,0)/arr.length;
+
+}
+
+function gerarSegmentado(){
+
+if(!dadosSegmentos || dadosSegmentos.length<5) return;
+
+const container=document.getElementById("segmentosAnalise");
+container.innerHTML="";
+
+let datas=[...new Set(dadosSegmentos.map(l=>l[0]))].sort();
+
+if(datas.length<2) return;
+
+let dataInicial=datas[0];
+let dataFinal=datas[datas.length-1];
+
+const membros={
+"Braço Esquerdo":"Braco_Esquerdo",
+"Braço Direito":"Braco_Direito",
+"Tronco":"Tronco",
+"Perna Esquerda":"Perna_Esquerda",
+"Perna Direita":"Perna_Direita"
+};
+
+Object.entries(membros).forEach(([label,key])=>{
+
+let gi=dadosSegmentos.find(l=>l[0]===dataInicial&&l[1]===key&&l[2]==="Gordura");
+let gf=dadosSegmentos.find(l=>l[0]===dataFinal&&l[1]===key&&l[2]==="Gordura");
+
+let mi=dadosSegmentos.find(l=>l[0]===dataInicial&&l[1]===key&&l[2]==="Musculo");
+let mf=dadosSegmentos.find(l=>l[0]===dataFinal&&l[1]===key&&l[2]==="Musculo");
+
+if(!gi||!gf||!mi||!mf) return;
+
+let gorduraInicial=parseFloat(gi[3]);
+let gorduraFinal=parseFloat(gf[3]);
+
+let musculoInicial=parseFloat(mi[3]);
+let musculoFinal=parseFloat(mf[3]);
+
+let deltaGordura=gorduraFinal-gorduraInicial;
+let deltaMusculo=musculoFinal-musculoInicial;
+
+let bloco=document.createElement("div");
+bloco.className="member-block";
+
+bloco.innerHTML=`
+<h3>${label}</h3>
+<div>Gordura: ${gorduraInicial} → ${gorduraFinal} (${deltaGordura.toFixed(2)} kg)</div>
+<div>Músculo: ${musculoInicial} → ${musculoFinal} (${deltaMusculo.toFixed(2)} kg)</div>
+`;
+
+container.appendChild(bloco);
+
+});
+
+}
+
+carregarCSVs();
+setInterval(carregarCSVs,60000);
+
+</script>
+
+</body>
+</html>

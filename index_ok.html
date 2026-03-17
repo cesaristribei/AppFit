@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Projeto 90 Dias</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="assets/style.css">
+
+</head>
+
+<body>
+
+<div class="topbar">
+
+<div class="title">Projeto 90 Dias</div>
+
+<div id="diasPlano" class="plan-progress"></div>
+
+<div class="nav">
+<a href="index.html">Dashboard</a>
+<a href="relatorio.html">Relatorio</a>
+<a href="alimentacao.html">Alimentação</a>
+<a href="treino.html">Treino</a>
+</div>
+
+</div>
+
+<div class="container">
+
+<div class="card">
+
+<div class="section-title">Carregar CSV</div>
+
+<input type="file" id="csvFile">
+
+<p class="hint">
+Formato: data,peso,gordura,massa_muscular
+</p>
+
+</div>
+
+<div class="section-title">Composição Corporal</div>
+
+<div class="grid">
+
+<div class="card">
+<div class="metric-title">Peso</div>
+<div id="peso" class="metric-value blue"></div>
+</div>
+
+<div class="card">
+<div class="metric-title">Body Fat</div>
+<div id="bf" class="metric-value orange"></div>
+</div>
+
+<div class="card">
+<div class="metric-title">Gordura (kg)</div>
+<div id="fat" class="metric-value red"></div>
+</div>
+
+<div class="card">
+<div class="metric-title">Músculo</div>
+<div id="muscle" class="metric-value green"></div>
+</div>
+
+<div class="card">
+<div class="metric-title">FFMI</div>
+<div id="ffmi" class="metric-value blue"></div>
+</div>
+
+</div>
+
+<div class="section-title">Progresso</div>
+
+<div class="card">
+
+<div class="rings">
+
+<div>
+<div class="ring">
+<canvas id="ringPeso" width="140" height="140"></canvas>
+<span id="ringPesoV"></span>
+</div>
+<div id="labelPeso" class="ring-label peso"></div>
+</div>
+
+<div>
+<div class="ring">
+<canvas id="ringFat" width="140" height="140"></canvas>
+<span id="ringFatV"></span>
+</div>
+<div id="labelFat" class="ring-label gordura"></div>
+</div>
+
+<div>
+<div class="ring">
+<canvas id="ringMuscle" width="140" height="140"></canvas>
+<span id="ringMuscleV"></span>
+</div>
+<div id="labelMuscle" class="ring-label musculo"></div>
+</div>
+
+<div>
+<div class="ring">
+<canvas id="ringRecomp" width="140" height="140"></canvas>
+<span id="ringRecompV"></span>
+</div>
+<div id="labelRecomp" class="ring-label recomp"></div>
+</div>
+
+</div>
+
+</div>
+
+<div class="section-title">Evolução</div>
+
+<div class="card">
+<canvas id="grafico"></canvas>
+</div>
+
+<div class="section-title">Histórico</div>
+
+<div class="card">
+
+<table id="historico">
+
+<tr>
+<th>Data</th>
+<th>Peso</th>
+<th>BF</th>
+<th>Músculo</th>
+</tr>
+
+</table>
+
+</div>
+
+</div>
+
+<script>
+
+const altura = 1.69
+
+const metas = {
+
+peso:85,
+gordura:22,
+musculo:42
+
+}
+
+const pesoInicial = 94.3
+const bfInicial = 26.8
+
+let chart
+
+/* ==============================
+UPLOAD CSV LOCAL
+============================== */
+
+document.getElementById("csvFile").addEventListener("change",function(e){
+
+const reader = new FileReader()
+
+reader.onload = function(event){
+
+processarCSV(event.target.result)
+
+}
+
+reader.readAsText(e.target.files[0])
+
+})
+
+/* ==============================
+CSV GOOGLE SHEETS
+============================== */
+
+async function carregarCSV(){
+
+const url =
+"https://docs.google.com/spreadsheets/d/1-6J_1syzBjhXEqVBt3EAqVf9QOghl_nKFiB143PTrVE/gviz/tq?tqx=out:csv&gid=0"
+
+try{
+
+const resposta = await fetch(url)
+
+const texto = await resposta.text()
+
+processarCSV(texto)
+
+}catch(e){
+
+console.log("Erro carregando CSV online")
+
+}
+
+}
+
+/* ==============================
+PROCESSAMENTO CSV
+============================== */
+
+function processarCSV(texto){
+
+const linhas = texto.trim().split(/\r?\n/)
+const dados = linhas.slice(1).map(l=>l.split(",")).filter(l=>l.length>=4)
+
+let datas=[]
+let pesos=[]
+let bfs=[]
+let musculos=[]
+let gorduras=[]
+
+dados.forEach(l=>{
+
+let peso=parseFloat(l[1])
+let gordura=parseFloat(l[2])
+let musculo=parseFloat(l[3])
+
+let bf=(gordura/peso)*100
+
+datas.push(l[0])
+pesos.push(peso)
+bfs.push(bf)
+musculos.push(musculo)
+gorduras.push(gordura)
+
+})
+
+const peso=pesos.at(-1)
+const bf=bfs.at(-1)
+const musculo=musculos.at(-1)
+const gordura=gorduras.at(-1)
+
+const massaMagra=peso-gordura
+const ffmi=massaMagra/(altura*altura)
+
+document.getElementById("peso").innerText=peso.toFixed(1)+" kg"
+document.getElementById("bf").innerText=bf.toFixed(1)+" %"
+document.getElementById("fat").innerText=gordura.toFixed(1)+" kg"
+document.getElementById("muscle").innerText=musculo.toFixed(1)+" kg"
+document.getElementById("ffmi").innerText=ffmi.toFixed(1)
+
+recomposicao(pesos,gorduras)
+
+document.getElementById("labelRecomp").innerHTML =
+"Recomposição<br><small>qualidade da perda</small>"
+
+desenharRings(peso,gordura,musculo,gorduras[0],musculos[0])
+
+grafico(datas,pesos,musculos,gorduras)
+
+historico(dados)
+
+}
+
+/* ==============================
+RINGS
+============================== */
+
+function ring(canvas,percent,color){
+
+const ctx=canvas.getContext("2d")
+
+ctx.clearRect(0,0,140,140)
+
+ctx.lineWidth=14
+ctx.lineCap="round"
+
+ctx.beginPath()
+ctx.strokeStyle="#e5e7eb"
+ctx.arc(70,70,55,0,2*Math.PI)
+ctx.stroke()
+
+ctx.beginPath()
+ctx.strokeStyle=color
+ctx.arc(70,70,55,-Math.PI/2,-Math.PI/2+(percent/100)*2*Math.PI)
+ctx.stroke()
+
+}
+
+function desenharRings(peso,gordura,musculo,gorduraInicial,musculoInicial){
+
+let pesoPct=(pesoInicial-peso)/(pesoInicial-metas.peso)*100
+let fatPct=(gorduraInicial-gordura)/(gorduraInicial-metas.gordura)*100
+let musclePct=(musculo-musculoInicial)/(metas.musculo-musculoInicial)*100
+
+pesoPct=Math.max(0,Math.min(100,pesoPct))
+fatPct=Math.max(0,Math.min(100,fatPct))
+musclePct=Math.max(0,Math.min(100,musclePct))
+
+ring(document.getElementById("ringPeso"),pesoPct,"#2563eb")
+ring(document.getElementById("ringFat"),fatPct,"#f59e0b")
+ring(document.getElementById("ringMuscle"),musclePct,"#22c55e")
+
+document.getElementById("ringPesoV").innerText=Math.round(pesoPct)+"%"
+document.getElementById("ringFatV").innerText=Math.round(fatPct)+"%"
+document.getElementById("ringMuscleV").innerText=Math.round(musclePct)+"%"
+
+document.getElementById("labelPeso").innerHTML=
+`Peso<br><small>${peso.toFixed(1)} → ${metas.peso}</small>`
+
+document.getElementById("labelFat").innerHTML=
+`Gordura<br><small>${gordura.toFixed(1)} → ${metas.gordura}</small>`
+
+document.getElementById("labelMuscle").innerHTML=
+`Músculo<br><small>${musculo.toFixed(1)} → ${metas.musculo}</small>`
+
+}
+
+/* ==============================
+RECOMPOSIÇÃO
+============================== */
+
+function recomposicao(pesos,gorduras){
+
+if(pesos.length<2) return
+
+let pesoAnterior=pesos[pesos.length-2]
+let gorduraAnterior=gorduras[gorduras.length-2]
+
+let pesoAtual=pesos[pesos.length-1]
+let gorduraAtual=gorduras[gorduras.length-1]
+
+let pesoPerdido=pesoAnterior-pesoAtual
+let gorduraPerdida=gorduraAnterior-gorduraAtual
+
+let score=0
+
+if(pesoPerdido>0){
+
+score=(gorduraPerdida/pesoPerdido)*100
+
+}
+
+score=Math.max(0,Math.min(100,score))
+
+ring(
+document.getElementById("ringRecomp"),
+score,
+"#8b5cf6"
+)
+
+document.getElementById("ringRecompV").innerText=
+Math.round(score)+"%"
+
+}
+
+/* ==============================
+GRÁFICO
+============================== */
+
+function grafico(datas,pesos,musculos,gorduras){
+
+if(chart) chart.destroy()
+
+chart=new Chart(document.getElementById("grafico"),{
+
+type:"line",
+
+data:{
+labels:datas,
+datasets:[
+{label:"Peso",data:pesos,borderColor:"#2563eb",tension:0.3},
+{label:"Músculo",data:musculos,borderColor:"#22c55e",tension:0.3},
+{label:"Gordura",data:gorduras,borderColor:"#f59e0b",tension:0.3}
+]
+}
+
+})
+
+}
+
+/* ==============================
+HISTÓRICO
+============================== */
+
+function historico(dados){
+
+let tabela=document.getElementById("historico")
+
+tabela.innerHTML=
+`
+<tr>
+<th>Data</th>
+<th>Peso</th>
+<th>BF</th>
+<th>Músculo</th>
+</tr>
+`
+
+dados.forEach(l=>{
+
+let row=tabela.insertRow()
+
+l.forEach(c=>row.insertCell().innerText=c)
+
+})
+
+}
+
+/* ==============================
+INICIAR
+============================== */
+
+carregarCSV()
+
+</script>
+
+</body>
+</html>
